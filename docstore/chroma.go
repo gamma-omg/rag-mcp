@@ -1,4 +1,4 @@
-package main
+package docstore
 
 import (
 	"context"
@@ -7,34 +7,14 @@ import (
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
 )
 
-type DocStore struct {
-	chunkSize    int
-	chunkOverlap int
-	results      int
-	col          chroma.Collection
+type ChromaStore struct {
+	results int
+	col     chroma.Collection
 }
 
-type Doc struct {
-	Text string
-	File string
-	Crc  int
-}
-
-type SearchResult struct {
-	Text  string
-	File  string
-	Score float32
-}
-
-type InjestedDoc struct {
-	File string
-	Crc  int
-}
-
-func (ds *DocStore) Injest(ctx context.Context, doc Doc) error {
-	chunks := chunkify(doc.Text, ds.chunkSize, ds.chunkOverlap)
+func (ds *ChromaStore) Injest(ctx context.Context, doc Doc) error {
 	return ds.col.Add(ctx,
-		chroma.WithTexts(chunks...),
+		chroma.WithTexts(doc.Chunks...),
 		chroma.WithIDGenerator(chroma.NewULIDGenerator()),
 		chroma.WithMetadatas(
 			chroma.NewDocumentMetadata(chroma.NewStringAttribute("file_path", doc.File)),
@@ -43,7 +23,7 @@ func (ds *DocStore) Injest(ctx context.Context, doc Doc) error {
 	)
 }
 
-func (ds *DocStore) Retrieve(ctx context.Context, query string) ([]SearchResult, error) {
+func (ds *ChromaStore) Retrieve(ctx context.Context, query string) ([]SearchResult, error) {
 	r, err := ds.col.Query(ctx,
 		chroma.WithQueryTexts(query),
 		chroma.WithNResults(ds.results),
@@ -70,45 +50,31 @@ func (ds *DocStore) Retrieve(ctx context.Context, query string) ([]SearchResult,
 	return res, nil
 }
 
-func (ds *DocStore) GetInjestedDocs(ctx context.Context) ([]InjestedDoc, error) {
+func (ds *ChromaStore) GetInjestedDocs(ctx context.Context) ([]InjestedDoc, error) {
 	res, err := ds.col.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var docs []InjestedDoc
+	seen := make(map[InjestedDoc]struct{})
 	metadata := res.GetMetadatas()
+
 	for _, meta := range metadata {
 		path, _ := meta.GetString("file_path")
 		crc, _ := meta.GetInt("file_crc")
-		docs = append(docs, InjestedDoc{
+		doc := InjestedDoc{
 			File: path,
 			Crc:  int(crc),
-		})
+		}
+
+		if _, ok := seen[doc]; ok {
+			continue
+		}
+
+		seen[doc] = struct{}{}
+		docs = append(docs, doc)
 	}
 
 	return docs, nil
-}
-
-func chunkify(text string, size int, overlap int) []string {
-	l := len(text)
-	if l == 0 {
-		return []string{}
-	}
-
-	step := size - overlap
-	pos := 0
-	res := make([]string, 0, l/step+1)
-
-	for {
-		end := min(pos+size, l)
-		res = append(res, text[pos:end])
-		if end >= l {
-			break
-		}
-
-		pos += step
-	}
-
-	return res
 }

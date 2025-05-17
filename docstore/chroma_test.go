@@ -1,8 +1,7 @@
-package main
+package docstore
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -12,40 +11,17 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func Test_Chunkify(t *testing.T) {
-	var cases = []struct {
-		input   string
-		size    int
-		overlap int
-		output  []string
-	}{
-		{input: "abcdefg", size: 3, overlap: 0, output: []string{"abc", "def", "g"}},
-		{input: "abcdefg", size: 3, overlap: 1, output: []string{"abc", "cde", "efg"}},
-		{input: "abcdefg", size: 9, overlap: 5, output: []string{"abcdefg"}},
-		{input: "", size: 9, overlap: 5, output: []string{}},
-	}
-
-	for i, c := range cases {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			out := chunkify(c.input, c.size, c.overlap)
-			assert.Equal(t, out, c.output)
-		})
-	}
-}
-
 func Test_Injest(t *testing.T) {
 	col := new(mocks.MockCollection)
-	store := DocStore{
-		chunkSize:    100,
-		chunkOverlap: 10,
-		results:      1,
-		col:          col,
+	store := ChromaStore{
+		results: 1,
+		col:     col,
 	}
 
 	doc := Doc{
-		Text: "Bananas are berries, but strawberries aren't.",
-		File: "facts.pdf",
-		Crc:  12345,
+		File:   "facts.pdf",
+		Crc:    12345,
+		Chunks: []string{"Bananas are berries, but strawberries aren't."},
 	}
 
 	col.On("Add", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -57,11 +33,9 @@ func Test_Injest(t *testing.T) {
 
 func Test_Retrieve(t *testing.T) {
 	col := new(mocks.MockCollection)
-	store := DocStore{
-		chunkSize:    100,
-		chunkOverlap: 10,
-		results:      1,
-		col:          col,
+	store := ChromaStore{
+		results: 1,
+		col:     col,
 	}
 
 	sr := SearchResult{
@@ -90,11 +64,9 @@ func Test_Retrieve(t *testing.T) {
 
 func Test_GetInjestedDocs(t *testing.T) {
 	col := new(mocks.MockCollection)
-	store := DocStore{
-		chunkSize:    1,
-		chunkOverlap: 1,
-		results:      1,
-		col:          col,
+	store := ChromaStore{
+		results: 1,
+		col:     col,
 	}
 
 	meta := new(mocks.MockDocumentMetadata)
@@ -111,6 +83,5 @@ func Test_GetInjestedDocs(t *testing.T) {
 	assert.Equal(t, injested, []InjestedDoc{
 		{File: "facts.pdf", Crc: 12345},
 	})
-
 	col.AssertExpectations(t)
 }

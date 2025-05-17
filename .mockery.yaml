@@ -1,0 +1,10 @@
+packages:
+  github.com/amikos-tech/chroma-go/pkg/api/v2:
+    config:
+      dir: mocks/chroma
+      outpkg: mocks
+    interfaces:
+      Collection:
+      QueryResult:
+      DocumentMetadata:
+      Document:

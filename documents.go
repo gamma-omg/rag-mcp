@@ -17,20 +17,28 @@ type DocStore struct {
 type Doc struct {
 	Text string
 	File string
+	Crc  int
+}
+
+type SearchResult struct {
+	Text  string
+	File  string
+	Score float32
 }
 
 func (ds *DocStore) Injest(ctx context.Context, doc Doc) error {
 	chunks := chunkify(doc.Text, ds.chunkSize, ds.chunkOverlap)
 	return ds.col.Add(ctx,
-		chroma.WithIDGenerator(chroma.NewULIDGenerator()),
 		chroma.WithTexts(chunks...),
+		chroma.WithIDGenerator(chroma.NewULIDGenerator()),
 		chroma.WithMetadatas(
 			chroma.NewDocumentMetadata(chroma.NewStringAttribute("file_path", doc.File)),
+			chroma.NewDocumentMetadata(chroma.NewIntAttribute("file_crc", int64(doc.Crc))),
 		),
 	)
 }
 
-func (ds *DocStore) Retrieve(ctx context.Context, query string) ([]string, error) {
+func (ds *DocStore) Retrieve(ctx context.Context, query string) ([]SearchResult, error) {
 	r, err := ds.col.Query(ctx,
 		chroma.WithQueryTexts(query),
 		chroma.WithNResults(ds.results),
@@ -39,11 +47,19 @@ func (ds *DocStore) Retrieve(ctx context.Context, query string) ([]string, error
 		return nil, fmt.Errorf("failed to retrieve texts: %w", err)
 	}
 
-	res := make([]string, 0, ds.results)
-	for _, docs := range r.GetDocumentsGroups() {
-		for _, doc := range docs {
-			res = append(res, doc.ContentString())
-		}
+	res := make([]SearchResult, 0, ds.results)
+	docs := r.GetDocumentsGroups()[0]
+	metadatas := r.GetMetadatasGroups()[0]
+	scores := r.GetDistancesGroups()[0]
+	r.GetDistancesGroups()
+	for i := range len(docs) {
+		doc := docs[i]
+		file, _ := metadatas[i].GetString("file_path")
+		res = append(res, SearchResult{
+			Text:  doc.ContentString(),
+			File:  file,
+			Score: float32(scores[i]),
+		})
 	}
 
 	return res, nil

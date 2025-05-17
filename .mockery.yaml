@@ -8,3 +8,4 @@ packages:
       QueryResult:
       DocumentMetadata:
       Document:
+      GetResult:

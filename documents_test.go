@@ -87,3 +87,30 @@ func Test_Retrieve(t *testing.T) {
 	assert.Equal(t, res, []SearchResult{sr})
 	col.AssertExpectations(t)
 }
+
+func Test_GetInjestedDocs(t *testing.T) {
+	col := new(mocks.MockCollection)
+	store := DocStore{
+		chunkSize:    1,
+		chunkOverlap: 1,
+		results:      1,
+		col:          col,
+	}
+
+	meta := new(mocks.MockDocumentMetadata)
+	meta.On("GetString", "file_path").Return("facts.pdf", true)
+	meta.On("GetInt", "file_crc").Return(int64(12345), true)
+
+	get := new(mocks.MockGetResult)
+	get.On("GetMetadatas").Return(chroma.DocumentMetadatas{meta})
+
+	col.On("Get", mock.Anything).Return(get, nil)
+
+	injested, err := store.GetInjestedDocs(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, injested, []InjestedDoc{
+		{File: "facts.pdf", Crc: 12345},
+	})
+
+	col.AssertExpectations(t)
+}

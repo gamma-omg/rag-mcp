@@ -65,7 +65,7 @@ func (ds *ChromaStore) GetInjestedDocs(ctx context.Context) ([]InjestedDoc, erro
 		crc, _ := meta.GetInt("file_crc")
 		doc := InjestedDoc{
 			File: path,
-			Crc:  int(crc),
+			Crc:  uint32(crc),
 		}
 
 		if _, ok := seen[doc]; ok {

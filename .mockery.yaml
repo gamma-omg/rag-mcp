@@ -9,3 +9,11 @@ packages:
       DocumentMetadata:
       Document:
       GetResult:
+  github.com/gamma-omg/rag-mcp:
+    config:
+      dir: mocks/main
+      outpkg: mocks
+    interfaces:
+      DocStore:
+      FileReader:
+      Chunkifier:

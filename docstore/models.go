@@ -2,7 +2,7 @@ package docstore
 
 type Doc struct {
 	File   string
-	Crc    int
+	Crc    uint32
 	Chunks []string
 }
 
@@ -14,5 +14,5 @@ type SearchResult struct {
 
 type InjestedDoc struct {
 	File string
-	Crc  int
+	Crc  uint32
 }

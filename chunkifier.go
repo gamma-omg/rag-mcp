@@ -1,17 +1,22 @@
 package main
 
-func Chunkify(text string, size int, overlap int) []string {
+type DefaultChunkfier struct {
+	chunkSize    int
+	chunkOverlap int
+}
+
+func (c *DefaultChunkfier) Chunkify(text string) []string {
 	l := len(text)
 	if l == 0 {
 		return []string{}
 	}
 
-	step := size - overlap
+	step := c.chunkSize - c.chunkOverlap
 	pos := 0
 	res := make([]string, 0, l/step+1)
 
 	for {
-		end := min(pos+size, l)
+		end := min(pos+c.chunkSize, l)
 		res = append(res, text[pos:end])
 		if end >= l {
 			break

@@ -22,7 +22,11 @@ func Test_Chunkify(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			out := Chunkify(c.input, c.size, c.overlap)
+			dc := DefaultChunkfier{
+				chunkSize:    c.size,
+				chunkOverlap: c.overlap,
+			}
+			out := dc.Chunkify(c.input)
 			assert.Equal(t, c.output, out)
 		})
 	}

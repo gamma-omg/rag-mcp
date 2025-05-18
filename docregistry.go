@@ -19,7 +19,7 @@ type DocStore interface {
 }
 
 type FileReader interface {
-	Ext() string
+	CanRead(path string) bool
 	ReadText(path string) (string, error)
 }
 
@@ -32,7 +32,7 @@ type DocRegistry struct {
 	root       string
 	store      DocStore
 	chunkifier Chunkifier
-	readers    map[string]FileReader
+	readers    []FileReader
 }
 
 type DiskDoc struct {
@@ -43,17 +43,8 @@ type DiskDoc struct {
 type diskDocs map[string]DiskDoc
 type dbDocs map[string]docstore.InjestedDoc
 
-func (dr *DocRegistry) RegisterReader(readers ...FileReader) error {
-	for _, r := range readers {
-		_, ok := dr.readers[r.Ext()]
-		if ok {
-			return fmt.Errorf("reader already registered for type %s", r.Ext())
-		}
-
-		dr.readers[r.Ext()] = r
-	}
-
-	return nil
+func (dr *DocRegistry) RegisterReader(readers ...FileReader) {
+	dr.readers = append(dr.readers, readers...)
 }
 
 func (dr *DocRegistry) Sync(ctx context.Context) error {
@@ -92,6 +83,10 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 
 func (dr *DocRegistry) collectDocs() (docs []DiskDoc, err error) {
 	err = filepath.Walk(dr.root, func(path string, info fs.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+
 		reader, e := dr.findReader(path)
 		if e != nil {
 			dr.log.Warn(fmt.Sprintf("unsupported file: %s", path))
@@ -103,8 +98,13 @@ func (dr *DocRegistry) collectDocs() (docs []DiskDoc, err error) {
 			return e
 		}
 
+		rel, e := filepath.Rel(dr.root, path)
+		if e != nil {
+			return err
+		}
+
 		docs = append(docs, DiskDoc{
-			File: path,
+			File: rel,
 			Crc:  crc32.Checksum([]byte(text), crc32.IEEETable),
 		})
 
@@ -129,7 +129,7 @@ func (dr *DocRegistry) injestNewDocuments(ctx context.Context, disk diskDocs, db
 			return fmt.Errorf("failed to find reader for document %s: %w", diskDoc.File, err)
 		}
 
-		text, err := reader.ReadText(diskDoc.File)
+		text, err := reader.ReadText(filepath.Join(dr.root, diskDoc.File))
 		if err != nil {
 			return fmt.Errorf("failed to read document %s: %w", diskDoc.File, err)
 		}
@@ -164,11 +164,11 @@ func (dr *DocRegistry) forgetRemovedDocuments(ctx context.Context, disk diskDocs
 }
 
 func (dr *DocRegistry) findReader(file string) (FileReader, error) {
-	ext := filepath.Ext(file)
-	reader, ok := dr.readers[ext]
-	if !ok {
-		return nil, fmt.Errorf("unable to find reader for file type: %s", ext)
+	for _, r := range dr.readers {
+		if r.CanRead(file) {
+			return r, nil
+		}
 	}
 
-	return reader, nil
+	return nil, fmt.Errorf("unable to find reader for file: %s", file)
 }

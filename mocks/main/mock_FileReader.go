@@ -17,47 +17,48 @@ func (_m *MockFileReader) EXPECT() *MockFileReader_Expecter {
 	return &MockFileReader_Expecter{mock: &_m.Mock}
 }
 
-// Ext provides a mock function with no fields
-func (_m *MockFileReader) Ext() string {
-	ret := _m.Called()
+// CanRead provides a mock function with given fields: path
+func (_m *MockFileReader) CanRead(path string) bool {
+	ret := _m.Called(path)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Ext")
+		panic("no return value specified for CanRead")
 	}
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
-		r0 = rf()
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(string) bool); ok {
+		r0 = rf(path)
 	} else {
-		r0 = ret.Get(0).(string)
+		r0 = ret.Get(0).(bool)
 	}
 
 	return r0
 }
 
-// MockFileReader_Ext_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Ext'
-type MockFileReader_Ext_Call struct {
+// MockFileReader_CanRead_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CanRead'
+type MockFileReader_CanRead_Call struct {
 	*mock.Call
 }
 
-// Ext is a helper method to define mock.On call
-func (_e *MockFileReader_Expecter) Ext() *MockFileReader_Ext_Call {
-	return &MockFileReader_Ext_Call{Call: _e.mock.On("Ext")}
+// CanRead is a helper method to define mock.On call
+//   - path string
+func (_e *MockFileReader_Expecter) CanRead(path interface{}) *MockFileReader_CanRead_Call {
+	return &MockFileReader_CanRead_Call{Call: _e.mock.On("CanRead", path)}
 }
 
-func (_c *MockFileReader_Ext_Call) Run(run func()) *MockFileReader_Ext_Call {
+func (_c *MockFileReader_CanRead_Call) Run(run func(path string)) *MockFileReader_CanRead_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run()
+		run(args[0].(string))
 	})
 	return _c
 }
 
-func (_c *MockFileReader_Ext_Call) Return(_a0 string) *MockFileReader_Ext_Call {
+func (_c *MockFileReader_CanRead_Call) Return(_a0 bool) *MockFileReader_CanRead_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockFileReader_Ext_Call) RunAndReturn(run func() string) *MockFileReader_Ext_Call {
+func (_c *MockFileReader_CanRead_Call) RunAndReturn(run func(string) bool) *MockFileReader_CanRead_Call {
 	_c.Call.Return(run)
 	return _c
 }

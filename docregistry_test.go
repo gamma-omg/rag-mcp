@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/gamma-omg/rag-mcp/docstore"
 	mocks "github.com/gamma-omg/rag-mcp/mocks/main"
@@ -36,6 +38,10 @@ type fakeDocStore struct {
 }
 
 func (s *fakeDocStore) Injest(ctx context.Context, doc docstore.Doc) error {
+	s.injested = append(s.injested, docstore.InjestedDoc{
+		File: doc.File,
+		Crc:  doc.Crc,
+	})
 	s.injestCalls = append(s.injestCalls, doc)
 	return nil
 }
@@ -45,6 +51,9 @@ func (s *fakeDocStore) Retrieve(ctx context.Context, query string) ([]docstore.S
 }
 
 func (s *fakeDocStore) Forget(ctx context.Context, doc docstore.InjestedDoc) error {
+	s.injested = slices.DeleteFunc(s.injested, func(d docstore.InjestedDoc) bool {
+		return d.File == doc.File && d.Crc == doc.Crc
+	})
 	s.foregetCalls = append(s.foregetCalls, doc)
 	return nil
 }
@@ -77,7 +86,7 @@ func Test_Sync(t *testing.T) {
 
 	createFile := func(name string, content string) DiskDoc {
 		buff := []byte(content)
-		e := os.WriteFile(filepath.Join(tmp, name), buff, 0644)
+		e := os.WriteFile(filepath.Join(tmp, name), buff, 0o644)
 		require.NoError(t, e)
 		return DiskDoc{
 			File: name,
@@ -112,6 +121,67 @@ func Test_Sync(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"f1.txt", "f3.pdf"}, store.getInjestCalls())
 	assert.ElementsMatch(t, []string{"f3.pdf", "f4.pdf"}, store.getForgetCalls())
+}
+
+func Test_Watch(t *testing.T) {
+	tmp, err := os.MkdirTemp(os.TempDir(), "test_")
+	require.NoError(t, err)
+
+	createFile := func(name string, content string) {
+		require.NoError(t, os.WriteFile(filepath.Join(tmp, name), []byte(content), 0o644))
+	}
+	removeFile := func(name string) {
+		require.NoError(t, os.Remove(filepath.Join(tmp, name)))
+	}
+	renameFile := func(oldname, newname string) {
+		require.NoError(t, os.Rename(
+			filepath.Join(tmp, oldname),
+			filepath.Join(tmp, newname)))
+	}
+
+	store := &fakeDocStore{}
+
+	chunkifier := new(mocks.MockChunkifier)
+	chunkifier.On("Chunkify", mock.Anything).Return([]string{"content"})
+
+	reg := DocRegistry{
+		log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		root:       tmp,
+		store:      store,
+		chunkifier: chunkifier,
+	}
+	reg.RegisterReader(&mockTextReader{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, reg.Watch(ctx))
+	time.Sleep(100 * time.Millisecond)
+
+	done := make(chan struct{})
+	go func() {
+		createFile("f1.txt", "f1")
+		time.Sleep(100 * time.Millisecond)
+
+		createFile("f2.txt", "f2")
+		time.Sleep(100 * time.Millisecond)
+
+		createFile("f1.txt", "new f1")
+		time.Sleep(100 * time.Millisecond)
+
+		renameFile("f1.txt", "f3.txt")
+		time.Sleep(100 * time.Millisecond)
+
+		removeFile("f2.txt")
+		time.Sleep(100 * time.Millisecond)
+
+		done <- struct{}{}
+	}()
+
+	<-done
+
+	assert.ElementsMatch(t, []string{"f1.txt", "f2.txt", "f1.txt", "f3.txt"}, store.getInjestCalls())
+	assert.ElementsMatch(t, []string{"f1.txt", "f1.txt", "f2.txt"}, store.getForgetCalls())
 }
 
 func Test_injestNewDocuments(t *testing.T) {
@@ -183,7 +253,7 @@ func Test_collectDocuments(t *testing.T) {
 
 	createFile := func(name string, content string) {
 		path := filepath.Join(tmp, name)
-		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 
 	createFile("f1.txt", "f1 content")

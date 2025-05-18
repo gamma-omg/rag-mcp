@@ -8,31 +8,32 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gamma-omg/rag-mcp/docstore"
 )
 
-type DocStore interface {
+type docStore interface {
 	Injest(ctx context.Context, doc docstore.Doc) error
 	Retrieve(ctx context.Context, query string) ([]docstore.SearchResult, error)
 	Forget(ctx context.Context, doc docstore.InjestedDoc) error
 	GetInjested(ctx context.Context) ([]docstore.InjestedDoc, error)
 }
 
-type FileReader interface {
+type fileReader interface {
 	CanRead(path string) bool
 	ReadText(path string) (string, error)
 }
 
-type Chunkifier interface {
+type chunkifier interface {
 	Chunkify(text string) []string
 }
 
 type DocRegistry struct {
 	log        *slog.Logger
 	root       string
-	store      DocStore
-	chunkifier Chunkifier
-	readers    []FileReader
+	store      docStore
+	chunkifier chunkifier
+	readers    []fileReader
 }
 
 type DiskDoc struct {
@@ -43,7 +44,7 @@ type DiskDoc struct {
 type diskDocs map[string]DiskDoc
 type dbDocs map[string]docstore.InjestedDoc
 
-func (dr *DocRegistry) RegisterReader(readers ...FileReader) {
+func (dr *DocRegistry) RegisterReader(readers ...fileReader) {
 	dr.readers = append(dr.readers, readers...)
 }
 
@@ -76,6 +77,131 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 	err = dr.forgetRemovedDocuments(ctx, diskMap, dbMap)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (dr *DocRegistry) Watch(ctx context.Context) error {
+	w, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("create new watcher: %w", err)
+	}
+
+	err = w.Add(dr.root)
+	if err != nil {
+		w.Close()
+		return fmt.Errorf("add %s to watcher: %w", dr.root, err)
+	}
+
+	go func() {
+		defer w.Close()
+
+		for {
+			select {
+			case e := <-w.Events:
+				dr.processFsEvent(e)
+			case e := <-w.Errors:
+				dr.log.Error(fmt.Sprintf("error watching docs: %s", e.Error()))
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
+	if evt.Op.Has(fsnotify.Create) {
+		err := dr.injestFile(evt.Name)
+		if err != nil {
+			dr.log.Warn("failed to handle create file", slog.String("error", err.Error()))
+		}
+		return
+	}
+
+	if evt.Op.Has(fsnotify.Write) {
+		err := dr.forgetFile(evt.Name)
+		if err != nil {
+			dr.log.Warn("failed to handle write file: failed to forget file", slog.String("error", err.Error()))
+			return
+		}
+
+		err = dr.injestFile(evt.Name)
+		if err != nil {
+			dr.log.Warn("failed to handle write file: failed to injest file", slog.String("error", err.Error()))
+			return
+		}
+
+		return
+	}
+
+	if evt.Op.Has(fsnotify.Rename) {
+		err := dr.forgetFile(evt.Name)
+		if err != nil {
+			dr.log.Warn("failed to handle write rename file", slog.String("error", err.Error()))
+		}
+		return
+	}
+
+	if evt.Op.Has(fsnotify.Remove) {
+		err := dr.forgetFile(evt.Name)
+		if err != nil {
+			slog.Warn("forget file failed", slog.String("error", err.Error()))
+		}
+	}
+}
+
+func (dr *DocRegistry) injestFile(path string) error {
+	reader, err := dr.findReader(path)
+	if err != nil {
+		dr.log.Warn("unable to injest file: reader not found", slog.String("file", path))
+		return nil
+	}
+
+	text, err := reader.ReadText(path)
+	if err != nil {
+		return fmt.Errorf("injestFile unable to read %s: %w", path, err)
+	}
+
+	rel, err := filepath.Rel(dr.root, path)
+	if err != nil {
+		return fmt.Errorf("injestFile invalid file path %s: %w", path, err)
+	}
+
+	err = dr.store.Injest(context.Background(), docstore.Doc{
+		File:   rel,
+		Crc:    crc32.Checksum([]byte(text), crc32.IEEETable),
+		Chunks: dr.chunkifier.Chunkify(text),
+	})
+	if err != nil {
+		return fmt.Errorf("injestFile failed to store %s content to db: %w", path, err)
+	}
+
+	return nil
+}
+
+func (dr *DocRegistry) forgetFile(path string) error {
+	docs, err := dr.store.GetInjested(context.Background())
+	if err != nil {
+		return fmt.Errorf("forgetFile failed to get injested files: %w", err)
+	}
+
+	rel, err := filepath.Rel(dr.root, path)
+	if err != nil {
+		return fmt.Errorf("forgetFile failed to get relative path for %s: %w", path, err)
+	}
+
+	for _, d := range docs {
+		if d.File != rel {
+			continue
+		}
+
+		err := dr.store.Forget(context.Background(), d)
+		if err != nil {
+			return fmt.Errorf("forgetFile failed to remove %s from db: %w", rel, err)
+		}
 	}
 
 	return nil
@@ -163,7 +289,7 @@ func (dr *DocRegistry) forgetRemovedDocuments(ctx context.Context, disk diskDocs
 	return nil
 }
 
-func (dr *DocRegistry) findReader(file string) (FileReader, error) {
+func (dr *DocRegistry) findReader(file string) (fileReader, error) {
 	for _, r := range dr.readers {
 		if r.CanRead(file) {
 			return r, nil

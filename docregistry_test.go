@@ -107,7 +107,7 @@ func Test_Sync(t *testing.T) {
 	}
 
 	chunkifier := new(mocks.MockChunkifier)
-	chunkifier.On("Chunkify", mock.Anything).Return([]string{"content"})
+	chunkifier.EXPECT().Chunkify(mock.Anything).Return([]string{"content"})
 
 	reg := DocRegistry{
 		log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -121,6 +121,7 @@ func Test_Sync(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"f1.txt", "f3.pdf"}, store.getInjestCalls())
 	assert.ElementsMatch(t, []string{"f3.pdf", "f4.pdf"}, store.getForgetCalls())
+	chunkifier.AssertExpectations(t)
 }
 
 func Test_Watch(t *testing.T) {
@@ -142,7 +143,7 @@ func Test_Watch(t *testing.T) {
 	store := &fakeDocStore{}
 
 	chunkifier := new(mocks.MockChunkifier)
-	chunkifier.On("Chunkify", mock.Anything).Return([]string{"content"})
+	chunkifier.EXPECT().Chunkify(mock.Anything).Return([]string{"content"})
 
 	reg := DocRegistry{
 		log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -182,6 +183,7 @@ func Test_Watch(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"f1.txt", "f2.txt", "f1.txt", "f3.txt"}, store.getInjestCalls())
 	assert.ElementsMatch(t, []string{"f1.txt", "f1.txt", "f2.txt"}, store.getForgetCalls())
+	chunkifier.AssertExpectations(t)
 }
 
 func Test_injestNewDocuments(t *testing.T) {
@@ -240,7 +242,7 @@ func Test_forgetRemovedDocuments(t *testing.T) {
 		File: "f3.txt",
 		Crc:  34567,
 	}
-	store.On("Forget", mock.Anything, expectedDocument).Return(nil)
+	store.EXPECT().Forget(mock.Anything, expectedDocument).Return(nil)
 
 	require.NoError(t, reg.forgetRemovedDocuments(context.Background(), disk, db))
 
@@ -262,12 +264,14 @@ func Test_collectDocuments(t *testing.T) {
 	createFile("unsupported.bin", "f3 content")
 
 	reader := new(mocks.MockFileReader)
-	reader.On("CanRead", mock.MatchedBy(func(path string) bool {
-		ext := filepath.Ext(path)
-		return ext == ".txt" || ext == ".pdf"
-	})).Return(true)
-	reader.On("CanRead", mock.Anything).Return(false)
-	reader.On("ReadText", mock.Anything).Return("", nil)
+	reader.EXPECT().
+		CanRead(mock.MatchedBy(func(path string) bool {
+			ext := filepath.Ext(path)
+			return ext == ".txt" || ext == ".pdf"
+		})).
+		Return(true)
+	reader.EXPECT().CanRead(mock.Anything).Return(false)
+	reader.EXPECT().ReadText(mock.Anything).Return("", nil)
 
 	reg := DocRegistry{
 		log:  slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -284,4 +288,5 @@ func Test_collectDocuments(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, files, []string{"f1.txt", "f2.txt", "f3.pdf"})
+	reader.AssertExpectations(t)
 }

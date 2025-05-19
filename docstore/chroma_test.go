@@ -9,6 +9,7 @@ import (
 	mocks "github.com/gamma-omg/rag-mcp/mocks/chroma"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Injest(t *testing.T) {
@@ -24,10 +25,9 @@ func Test_Injest(t *testing.T) {
 		Chunks: []string{"Bananas are berries, but strawberries aren't."},
 	}
 
-	col.On("Add", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	col.EXPECT().Add(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	err := store.Injest(context.Background(), doc)
-	assert.NoError(t, err)
+	require.NoError(t, store.Injest(context.Background(), doc))
 	col.AssertExpectations(t)
 }
 
@@ -45,21 +45,37 @@ func Test_Retrieve(t *testing.T) {
 	}
 
 	doc := new(mocks.MockDocument)
-	doc.On("ContentString").Return(sr.Text)
+	doc.EXPECT().ContentString().Return(sr.Text)
 
 	meta := new(mocks.MockDocumentMetadata)
-	meta.On("GetString", "file_path").Return(sr.File, true)
+	meta.EXPECT().GetString("file_path").Return(sr.File, true)
 
 	qr := new(mocks.MockQueryResult)
-	qr.On("GetMetadatasGroups").Return([]chroma.DocumentMetadatas{{meta}})
-	qr.On("GetDistancesGroups").Return([]embeddings.Distances{{embeddings.Distance(0.9)}})
-	qr.On("GetDocumentsGroups").Return([]chroma.Documents{{doc}})
-	col.On("Query", mock.Anything, mock.Anything, mock.Anything).Return(qr, nil)
+	qr.EXPECT().GetMetadatasGroups().Return([]chroma.DocumentMetadatas{{meta}})
+	qr.EXPECT().GetDistancesGroups().Return([]embeddings.Distances{{embeddings.Distance(0.9)}})
+	qr.EXPECT().GetDocumentsGroups().Return([]chroma.Documents{{doc}})
+	col.EXPECT().Query(mock.Anything, mock.Anything, mock.Anything).Return(qr, nil)
 
 	res, err := store.Retrieve(context.Background(), "A day on Venus is longer than its year.")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, res, []SearchResult{sr})
 	col.AssertExpectations(t)
+}
+
+func Test_Forget(t *testing.T) {
+	col := new(mocks.MockCollection)
+	store := ChromaStore{
+		results: 1,
+		col:     col,
+	}
+
+	doc := InjestedDoc{
+		File: "f1.txt",
+		Crc:  123,
+	}
+	col.EXPECT().Delete(mock.Anything, mock.Anything).Return(nil)
+
+	require.NoError(t, store.Forget(context.Background(), doc))
 }
 
 func Test_GetInjestedDocs(t *testing.T) {
@@ -70,18 +86,16 @@ func Test_GetInjestedDocs(t *testing.T) {
 	}
 
 	meta := new(mocks.MockDocumentMetadata)
-	meta.On("GetString", "file_path").Return("facts.pdf", true)
-	meta.On("GetInt", "file_crc").Return(int64(12345), true)
+	meta.EXPECT().GetString("file_path").Return("facts.pdf", true)
+	meta.EXPECT().GetInt("file_crc").Return(int64(12345), true)
 
 	get := new(mocks.MockGetResult)
-	get.On("GetMetadatas").Return(chroma.DocumentMetadatas{meta})
+	get.EXPECT().GetMetadatas().Return(chroma.DocumentMetadatas{meta})
 
-	col.On("Get", mock.Anything).Return(get, nil)
+	col.EXPECT().Get(mock.Anything).Return(get, nil)
 
 	injested, err := store.GetInjestedDocs(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, injested, []InjestedDoc{
-		{File: "facts.pdf", Crc: 12345},
-	})
+	require.NoError(t, err)
+	assert.Equal(t, injested, []InjestedDoc{{File: "facts.pdf", Crc: 12345}})
 	col.AssertExpectations(t)
 }

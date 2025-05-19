@@ -50,6 +50,15 @@ func (ds *ChromaStore) Retrieve(ctx context.Context, query string) ([]SearchResu
 	return res, nil
 }
 
+func (ds *ChromaStore) Forget(ctx context.Context, doc InjestedDoc) error {
+	err := ds.col.Delete(ctx, chroma.WithWhereDelete(chroma.EqString("file_path", doc.File)))
+	if err != nil {
+		return fmt.Errorf("failed to forget doc %s: %w", doc.File, err)
+	}
+
+	return nil
+}
+
 func (ds *ChromaStore) GetInjestedDocs(ctx context.Context) ([]InjestedDoc, error) {
 	res, err := ds.col.Get(ctx)
 	if err != nil {

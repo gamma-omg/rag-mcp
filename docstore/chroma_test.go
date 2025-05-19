@@ -48,7 +48,7 @@ func Test_Retrieve(t *testing.T) {
 	doc.EXPECT().ContentString().Return(sr.Text)
 
 	meta := new(mocks.MockDocumentMetadata)
-	meta.EXPECT().GetString("file_path").Return(sr.File, true)
+	meta.EXPECT().GetString(FilePath).Return(sr.File, true)
 
 	qr := new(mocks.MockQueryResult)
 	qr.EXPECT().GetMetadatasGroups().Return([]chroma.DocumentMetadatas{{meta}})
@@ -86,8 +86,8 @@ func Test_GetInjestedDocs(t *testing.T) {
 	}
 
 	meta := new(mocks.MockDocumentMetadata)
-	meta.EXPECT().GetString("file_path").Return("facts.pdf", true)
-	meta.EXPECT().GetInt("file_crc").Return(int64(12345), true)
+	meta.EXPECT().GetString(FilePath).Return("facts.pdf", true)
+	meta.EXPECT().GetInt(FileCrc).Return(int64(12345), true)
 
 	get := new(mocks.MockGetResult)
 	get.EXPECT().GetMetadatas().Return(chroma.DocumentMetadatas{meta})

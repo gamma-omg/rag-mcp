@@ -12,13 +12,18 @@ type ChromaStore struct {
 	col     chroma.Collection
 }
 
+const (
+	FilePath = "file_path"
+	FileCrc  = "file_crc"
+)
+
 func (ds *ChromaStore) Injest(ctx context.Context, doc Doc) error {
 	return ds.col.Add(ctx,
 		chroma.WithTexts(doc.Chunks...),
 		chroma.WithIDGenerator(chroma.NewULIDGenerator()),
 		chroma.WithMetadatas(
-			chroma.NewDocumentMetadata(chroma.NewStringAttribute("file_path", doc.File)),
-			chroma.NewDocumentMetadata(chroma.NewIntAttribute("file_crc", int64(doc.Crc))),
+			chroma.NewDocumentMetadata(chroma.NewStringAttribute(FilePath, doc.File)),
+			chroma.NewDocumentMetadata(chroma.NewIntAttribute(FileCrc, int64(doc.Crc))),
 		),
 	)
 }
@@ -39,7 +44,7 @@ func (ds *ChromaStore) Retrieve(ctx context.Context, query string) ([]SearchResu
 	r.GetDistancesGroups()
 	for i := range len(docs) {
 		doc := docs[i]
-		file, _ := metadatas[i].GetString("file_path")
+		file, _ := metadatas[i].GetString(FilePath)
 		res = append(res, SearchResult{
 			Text:  doc.ContentString(),
 			File:  file,
@@ -51,7 +56,7 @@ func (ds *ChromaStore) Retrieve(ctx context.Context, query string) ([]SearchResu
 }
 
 func (ds *ChromaStore) Forget(ctx context.Context, doc InjestedDoc) error {
-	err := ds.col.Delete(ctx, chroma.WithWhereDelete(chroma.EqString("file_path", doc.File)))
+	err := ds.col.Delete(ctx, chroma.WithWhereDelete(chroma.EqString(FilePath, doc.File)))
 	if err != nil {
 		return fmt.Errorf("failed to forget doc %s: %w", doc.File, err)
 	}
@@ -70,8 +75,8 @@ func (ds *ChromaStore) GetInjestedDocs(ctx context.Context) ([]InjestedDoc, erro
 	metadata := res.GetMetadatas()
 
 	for _, meta := range metadata {
-		path, _ := meta.GetString("file_path")
-		crc, _ := meta.GetInt("file_crc")
+		path, _ := meta.GetString(FilePath)
+		crc, _ := meta.GetInt(FileCrc)
 		doc := InjestedDoc{
 			File: path,
 			Crc:  uint32(crc),

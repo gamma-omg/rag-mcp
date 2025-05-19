@@ -51,7 +51,7 @@ func (dr *DocRegistry) RegisterReader(readers ...fileReader) {
 func (dr *DocRegistry) Sync(ctx context.Context) error {
 	disk, err := dr.collectDocs()
 	if err != nil {
-		return err
+		return fmt.Errorf("collect docs from disk: %w", err)
 	}
 
 	diskMap := make(diskDocs)
@@ -61,7 +61,7 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 
 	db, err := dr.store.GetInjested(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("collect injested docs from db: %w", err)
 	}
 
 	dbMap := make(dbDocs)
@@ -71,12 +71,12 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 
 	err = dr.injestNewDocuments(ctx, diskMap, dbMap)
 	if err != nil {
-		return err
+		return fmt.Errorf("injest new documents: %w", err)
 	}
 
 	err = dr.forgetRemovedDocuments(ctx, diskMap, dbMap)
 	if err != nil {
-		return err
+		return fmt.Errorf("forget removed documents: %w", err)
 	}
 
 	return nil

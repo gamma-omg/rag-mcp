@@ -4,6 +4,7 @@ go 1.23.3
 
 require (
 	github.com/amikos-tech/chroma-go v0.2.2
+	github.com/dslipak/pdf v0.0.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/stretchr/testify v1.10.0
 )

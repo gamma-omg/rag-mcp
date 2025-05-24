@@ -15,9 +15,8 @@ import (
 	"github.com/gamma-omg/rag-mcp/docstore"
 )
 
-type docStore interface {
+type docStorer interface {
 	Injest(ctx context.Context, doc docstore.Doc) error
-	Retrieve(ctx context.Context, query string) ([]docstore.SearchResult, error)
 	Forget(ctx context.Context, doc docstore.InjestedDoc) error
 	GetInjested(ctx context.Context) ([]docstore.InjestedDoc, error)
 }
@@ -34,7 +33,7 @@ type chunkifier interface {
 type DocRegistry struct {
 	log              *slog.Logger
 	root             string
-	store            docStore
+	storer           docStorer
 	chunkifier       chunkifier
 	readers          []fileReader
 	mergeEventsDelay time.Duration
@@ -70,7 +69,7 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 		diskMap[d.File] = d
 	}
 
-	db, err := dr.store.GetInjested(ctx)
+	db, err := dr.storer.GetInjested(ctx)
 	if err != nil {
 		return fmt.Errorf("collect injested docs from db: %w", err)
 	}
@@ -231,7 +230,7 @@ func (dr *DocRegistry) injestFile(path string) error {
 		Crc:    crc32.Checksum([]byte(text), crc32.IEEETable),
 		Chunks: dr.chunkifier.Chunkify(text),
 	}
-	err = dr.store.Injest(context.Background(), doc)
+	err = dr.storer.Injest(context.Background(), doc)
 	if err != nil {
 		return fmt.Errorf("injestFile failed to store %s content to db: %w", path, err)
 	}
@@ -241,7 +240,7 @@ func (dr *DocRegistry) injestFile(path string) error {
 }
 
 func (dr *DocRegistry) forgetFile(path string) error {
-	docs, err := dr.store.GetInjested(context.Background())
+	docs, err := dr.storer.GetInjested(context.Background())
 	if err != nil {
 		return fmt.Errorf("forgetFile failed to get injested files: %w", err)
 	}
@@ -256,7 +255,7 @@ func (dr *DocRegistry) forgetFile(path string) error {
 			continue
 		}
 
-		err := dr.store.Forget(context.Background(), d)
+		err := dr.storer.Forget(context.Background(), d)
 		if err != nil {
 			return fmt.Errorf("forgetFile failed to remove %s from db: %w", rel, err)
 		}
@@ -320,7 +319,7 @@ func (dr *DocRegistry) injestNewDocuments(ctx context.Context, disk diskDocs, db
 			return fmt.Errorf("failed to read document %s: %w", diskDoc.File, err)
 		}
 
-		err = dr.store.Injest(ctx, docstore.Doc{
+		err = dr.storer.Injest(ctx, docstore.Doc{
 			File:   diskDoc.File,
 			Crc:    diskDoc.Crc,
 			Chunks: dr.chunkifier.Chunkify(text),
@@ -342,7 +341,7 @@ func (dr *DocRegistry) forgetRemovedDocuments(ctx context.Context, disk diskDocs
 			continue
 		}
 
-		err := dr.store.Forget(ctx, dbDoc)
+		err := dr.storer.Forget(ctx, dbDoc)
 		if err != nil {
 			return fmt.Errorf("failed to remove document %s from store: %w", dbDoc.File, err)
 		}

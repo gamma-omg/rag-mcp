@@ -1,4 +1,5 @@
 log: log.json
+server_addr: ":3001"
 doc_root: docs
 write_debounce_ms: 500
 chunk_size: 1024

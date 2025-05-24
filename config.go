@@ -15,6 +15,7 @@ type Config struct {
 	ChunkOverlap  int    `yaml:"chunk_overlap"`
 	RequestSize   int    `yaml:"request_size"`
 	Results       int    `yaml:"results"`
+	ServerAddr    string `yaml:"server_addr"`
 	OpenAI        *struct {
 		Model  string `yaml:"model"`
 		ApiKey string `yaml:"api_key"`

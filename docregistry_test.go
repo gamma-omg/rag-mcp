@@ -111,7 +111,7 @@ func Test_Sync(t *testing.T) {
 
 	reg := DocRegistry{
 		log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-		store:      store,
+		storer:     store,
 		chunkifier: chunkifier,
 		root:       tmp,
 	}
@@ -148,7 +148,7 @@ func Test_Watch(t *testing.T) {
 	reg := DocRegistry{
 		log:              slog.New(slog.NewTextHandler(io.Discard, nil)),
 		root:             tmp,
-		store:            store,
+		storer:           store,
 		chunkifier:       chunkifier,
 		mergeEventsDelay: 50 * time.Millisecond,
 	}
@@ -208,7 +208,7 @@ func Test_Watch_MergeEvents(t *testing.T) {
 	reg := DocRegistry{
 		log:              slog.New(slog.NewTextHandler(io.Discard, nil)),
 		root:             tmp,
-		store:            store,
+		storer:           store,
 		chunkifier:       chunkifier,
 		mergeEventsDelay: 250 * time.Millisecond,
 	}
@@ -258,7 +258,7 @@ func Test_injestNewDocuments(t *testing.T) {
 
 	reg := DocRegistry{
 		log:        slog.Default(),
-		store:      store,
+		storer:     store,
 		chunkifier: chunkifier,
 	}
 	reg.RegisterReader(reader)
@@ -289,8 +289,8 @@ func Test_injestNewDocuments(t *testing.T) {
 func Test_forgetRemovedDocuments(t *testing.T) {
 	store := new(mocks.MockDocStore)
 	reg := DocRegistry{
-		log:   slog.Default(),
-		store: store,
+		log:    slog.Default(),
+		storer: store,
 	}
 
 	disk := diskDocs{

@@ -5,11 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"log/slog"
 	"os"
-	"os/signal"
 	"time"
 
 	"github.com/amikos-tech/chroma-go/pkg/embeddings"
@@ -17,6 +15,7 @@ import (
 	openai "github.com/amikos-tech/chroma-go/pkg/embeddings/openai"
 	"github.com/gamma-omg/rag-mcp/docstore"
 	"github.com/gamma-omg/rag-mcp/readers"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 func createEmbeddingFunction(cfg *Config) (embeddings.EmbeddingFunction, error) {
@@ -78,7 +77,7 @@ func main() {
 	}
 	defer logFile.Close()
 
-	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stdout, logFile), nil))
+	logger := slog.New(slog.NewJSONHandler(logFile, nil))
 
 	store, err := initDocStore(cfg, *reset)
 	if err != nil {
@@ -89,7 +88,7 @@ func main() {
 		log:              logger,
 		root:             cfg.DocRoot,
 		mergeEventsDelay: time.Duration(cfg.MergeEventsMs) * time.Millisecond,
-		store:            store,
+		storer:           store,
 		chunkifier: &DefaultChunkfier{
 			chunkSize:    cfg.ChunkSize,
 			chunkOverlap: cfg.ChunkOverlap,
@@ -97,20 +96,22 @@ func main() {
 		readers: []fileReader{&readers.UniversalFileReader{}},
 	}
 
-	err = reg.Sync(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
-	err = reg.Watch(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
 	defer cancel()
 
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, os.Interrupt)
+	go func() {
+		err = reg.Sync(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	<-done
+		err = reg.Watch(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	srv := NewRagServer(store)
+	sse := server.NewSSEServer(srv, server.WithBaseURL(fmt.Sprintf("http://%s", cfg.ServerAddr)))
+	log.Println(sse.Start(cfg.ServerAddr))
 }

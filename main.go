@@ -117,7 +117,7 @@ func main() {
 		}
 	}()
 
-	srv := NewRagServer(store)
+	srv := NewRagServer(store, logger)
 	sse := server.NewSSEServer(srv, server.WithBaseURL(fmt.Sprintf("http://%s", cfg.ServerAddr)))
 	log.Println(sse.Start(cfg.ServerAddr))
 }

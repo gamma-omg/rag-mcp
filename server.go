@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/gamma-omg/rag-mcp/docstore"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -14,7 +15,7 @@ type docRetriever interface {
 	Retrieve(ctx context.Context, query string) ([]docstore.SearchResult, error)
 }
 
-func NewRagServer(retriever docRetriever) *server.MCPServer {
+func NewRagServer(retriever docRetriever, logger *slog.Logger) *server.MCPServer {
 	tool := mcp.NewTool("RAG tool",
 		mcp.WithDescription("This tool allows searching user documents and get results for RAG"),
 		mcp.WithString("query",
@@ -28,6 +29,8 @@ func NewRagServer(retriever docRetriever) *server.MCPServer {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
+
+		logger.Info("search tool invoked", "query", q)
 
 		res, err := retriever.Retrieve(ctx, q)
 		if err != nil {

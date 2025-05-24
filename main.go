@@ -94,7 +94,7 @@ func main() {
 			chunkSize:    cfg.ChunkSize,
 			chunkOverlap: cfg.ChunkOverlap,
 		},
-		readers: []fileReader{&readers.TxtFileReader{}, &readers.PdfFileReader{}},
+		readers: []fileReader{&readers.UniversalFileReader{}},
 	}
 
 	err = reg.Sync(context.Background())

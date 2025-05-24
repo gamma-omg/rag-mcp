@@ -146,10 +146,11 @@ func Test_Watch(t *testing.T) {
 	chunkifier.EXPECT().Chunkify(mock.Anything).Return([]string{"content"})
 
 	reg := DocRegistry{
-		log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-		root:       tmp,
-		store:      store,
-		chunkifier: chunkifier,
+		log:              slog.New(slog.NewTextHandler(io.Discard, nil)),
+		root:             tmp,
+		store:            store,
+		chunkifier:       chunkifier,
+		mergeEventsDelay: 50 * time.Millisecond,
 	}
 	reg.RegisterReader(&mockTextReader{})
 
@@ -186,6 +187,65 @@ func Test_Watch(t *testing.T) {
 	chunkifier.AssertExpectations(t)
 }
 
+func Test_Watch_MergeEvents(t *testing.T) {
+	tmp, err := os.MkdirTemp(os.TempDir(), "test_")
+	require.NoError(t, err)
+
+	createFile := func(name string, content string) {
+		require.NoError(t, os.WriteFile(filepath.Join(tmp, name), []byte(content), 0o644))
+	}
+	renameFile := func(oldname, newname string) {
+		require.NoError(t, os.Rename(
+			filepath.Join(tmp, oldname),
+			filepath.Join(tmp, newname)))
+	}
+
+	store := &fakeDocStore{}
+
+	chunkifier := new(mocks.MockChunkifier)
+	chunkifier.EXPECT().Chunkify(mock.Anything).Return([]string{"content"})
+
+	reg := DocRegistry{
+		log:              slog.New(slog.NewTextHandler(io.Discard, nil)),
+		root:             tmp,
+		store:            store,
+		chunkifier:       chunkifier,
+		mergeEventsDelay: 250 * time.Millisecond,
+	}
+	reg.RegisterReader(&mockTextReader{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, reg.Watch(ctx))
+	time.Sleep(100 * time.Millisecond)
+
+	done := make(chan struct{})
+	go func() {
+		createFile("f1.txt", "f1")
+		time.Sleep(50 * time.Millisecond)
+
+		createFile("f1.txt", "new f1")
+		time.Sleep(50 * time.Millisecond)
+
+		renameFile("f1.txt", "f3.txt")
+		time.Sleep(50 * time.Millisecond)
+
+		createFile("f2.txt", "f2")
+		time.Sleep(300 * time.Millisecond)
+
+		createFile("f2.txt", "new f2")
+		time.Sleep(300 * time.Millisecond)
+
+		done <- struct{}{}
+	}()
+
+	<-done
+
+	assert.ElementsMatch(t, []string{"f3.txt", "f2.txt", "f2.txt"}, store.getInjestCalls())
+	chunkifier.AssertExpectations(t)
+}
+
 func Test_injestNewDocuments(t *testing.T) {
 	store := new(mocks.MockDocStore)
 
@@ -197,6 +257,7 @@ func Test_injestNewDocuments(t *testing.T) {
 	chunkifier.On("Chunkify", mock.Anything).Return([]string{"f1 content"})
 
 	reg := DocRegistry{
+		log:        slog.Default(),
 		store:      store,
 		chunkifier: chunkifier,
 	}
@@ -227,7 +288,10 @@ func Test_injestNewDocuments(t *testing.T) {
 
 func Test_forgetRemovedDocuments(t *testing.T) {
 	store := new(mocks.MockDocStore)
-	reg := DocRegistry{store: store}
+	reg := DocRegistry{
+		log:   slog.Default(),
+		store: store,
+	}
 
 	disk := diskDocs{
 		"f1.txt": DiskDoc{File: "f1.txt", Crc: 12345},
@@ -274,7 +338,7 @@ func Test_collectDocuments(t *testing.T) {
 	reader.EXPECT().ReadText(mock.Anything).Return("", nil)
 
 	reg := DocRegistry{
-		log:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		log:  slog.Default(),
 		root: tmp,
 	}
 	reg.RegisterReader(reader)

@@ -23,3 +23,14 @@ go.work.sum
 
 # env file
 .env
+
+# OS specific
+.DS_Store
+
+#IDE
+.vscode
+
+# Project specific
+cfg/config.yaml
+docs
+log.json

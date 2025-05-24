@@ -31,6 +31,26 @@ func Test_Injest(t *testing.T) {
 	col.AssertExpectations(t)
 }
 
+func Test_Injest_SplitsToBuckets(t *testing.T) {
+	col := new(mocks.MockCollection)
+	store := ChromaStore{
+		results:     1,
+		requestSize: 13,
+		col:         col,
+	}
+
+	doc := Doc{
+		File:   "facts.pdf",
+		Crc:    12345,
+		Chunks: []string{"Bananas", "are", "berries", "but", "strawberries", "aren't"},
+	}
+
+	col.EXPECT().Add(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(4)
+
+	require.NoError(t, store.Injest(context.Background(), doc))
+	col.AssertExpectations(t)
+}
+
 func Test_Retrieve(t *testing.T) {
 	col := new(mocks.MockCollection)
 	store := ChromaStore{
@@ -87,14 +107,14 @@ func Test_GetInjestedDocs(t *testing.T) {
 
 	meta := new(mocks.MockDocumentMetadata)
 	meta.EXPECT().GetString(FilePath).Return("facts.pdf", true)
-	meta.EXPECT().GetInt(FileCrc).Return(int64(12345), true)
+	meta.EXPECT().GetFloat(FileCrc).Return(float64(12345), true)
 
 	get := new(mocks.MockGetResult)
 	get.EXPECT().GetMetadatas().Return(chroma.DocumentMetadatas{meta})
 
-	col.EXPECT().Get(mock.Anything).Return(get, nil)
+	col.EXPECT().Get(mock.Anything, mock.Anything).Return(get, nil)
 
-	injested, err := store.GetInjestedDocs(context.Background())
+	injested, err := store.GetInjested(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, injested, []InjestedDoc{{File: "facts.pdf", Crc: 12345}})
 	col.AssertExpectations(t)

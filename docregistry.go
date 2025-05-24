@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gamma-omg/rag-mcp/docstore"
@@ -29,11 +32,12 @@ type chunkifier interface {
 }
 
 type DocRegistry struct {
-	log        *slog.Logger
-	root       string
-	store      docStore
-	chunkifier chunkifier
-	readers    []fileReader
+	log              *slog.Logger
+	root             string
+	store            docStore
+	chunkifier       chunkifier
+	readers          []fileReader
+	mergeEventsDelay time.Duration
 }
 
 type DiskDoc struct {
@@ -49,6 +53,13 @@ func (dr *DocRegistry) RegisterReader(readers ...fileReader) {
 }
 
 func (dr *DocRegistry) Sync(ctx context.Context) error {
+	dr.log.Info("syncing documents directory", "root", dr.root)
+
+	err := ensureDir(dr.root)
+	if err != nil {
+		return fmt.Errorf("failed to create documents directory: %w", err)
+	}
+
 	disk, err := dr.collectDocs()
 	if err != nil {
 		return fmt.Errorf("collect docs from disk: %w", err)
@@ -79,6 +90,7 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 		return fmt.Errorf("forget removed documents: %w", err)
 	}
 
+	dr.log.Info("documents registry synchronized", "root", dr.root)
 	return nil
 }
 
@@ -97,9 +109,10 @@ func (dr *DocRegistry) Watch(ctx context.Context) error {
 	go func() {
 		defer w.Close()
 
+		events := mergeEvents(w.Events, dr.mergeEventsDelay)
 		for {
 			select {
-			case e := <-w.Events:
+			case e := <-events:
 				dr.processFsEvent(e)
 			case e := <-w.Errors:
 				dr.log.Error(fmt.Sprintf("error watching docs: %s", e.Error()))
@@ -112,16 +125,57 @@ func (dr *DocRegistry) Watch(ctx context.Context) error {
 	return nil
 }
 
-func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
-	if evt.Op.Has(fsnotify.Create) {
-		err := dr.injestFile(evt.Name)
-		if err != nil {
-			dr.log.Warn("failed to handle create file", slog.String("error", err.Error()))
-		}
-		return
-	}
+func mergeEvents(in <-chan fsnotify.Event, dt time.Duration) <-chan fsnotify.Event {
+	out := make(chan fsnotify.Event)
 
-	if evt.Op.Has(fsnotify.Write) {
+	go func() {
+		defer close(out)
+
+		pending := make(map[string]struct {
+			evt   fsnotify.Event
+			timer *time.Timer
+		})
+
+		flush := func(file string) {
+			write := pending[file]
+			delete(pending, file)
+			out <- write.evt
+		}
+
+		for evt := range in {
+			e, ok := pending[evt.Name]
+			if !ok {
+				pending[evt.Name] = struct {
+					evt   fsnotify.Event
+					timer *time.Timer
+				}{
+					evt:   evt,
+					timer: time.AfterFunc(dt, func() { flush(evt.Name) }),
+				}
+				continue
+			}
+
+			if !e.timer.Stop() {
+				<-e.timer.C
+			}
+
+			e.timer.Reset(dt)
+			e.evt.Op |= evt.Op
+			pending[evt.Name] = e
+		}
+
+		for _, e := range pending {
+			out <- e.evt
+		}
+	}()
+
+	return out
+}
+
+func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
+	if evt.Op.Has(fsnotify.Write) || evt.Op.Has(fsnotify.Create) {
+		dr.log.Debug("fsevent write", "file", evt.Name)
+
 		err := dr.forgetFile(evt.Name)
 		if err != nil {
 			dr.log.Warn("failed to handle write file: failed to forget file", slog.String("error", err.Error()))
@@ -133,11 +187,11 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 			dr.log.Warn("failed to handle write file: failed to injest file", slog.String("error", err.Error()))
 			return
 		}
-
-		return
 	}
 
 	if evt.Op.Has(fsnotify.Rename) {
+		dr.log.Debug("fsevent rename", "file", evt.Name)
+
 		err := dr.forgetFile(evt.Name)
 		if err != nil {
 			dr.log.Warn("failed to handle write rename file", slog.String("error", err.Error()))
@@ -146,6 +200,8 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 	}
 
 	if evt.Op.Has(fsnotify.Remove) {
+		dr.log.Debug("fsevent remove", "file", evt.Name)
+
 		err := dr.forgetFile(evt.Name)
 		if err != nil {
 			slog.Warn("forget file failed", slog.String("error", err.Error()))
@@ -170,15 +226,17 @@ func (dr *DocRegistry) injestFile(path string) error {
 		return fmt.Errorf("injestFile invalid file path %s: %w", path, err)
 	}
 
-	err = dr.store.Injest(context.Background(), docstore.Doc{
+	doc := docstore.Doc{
 		File:   rel,
 		Crc:    crc32.Checksum([]byte(text), crc32.IEEETable),
 		Chunks: dr.chunkifier.Chunkify(text),
-	})
+	}
+	err = dr.store.Injest(context.Background(), doc)
 	if err != nil {
 		return fmt.Errorf("injestFile failed to store %s content to db: %w", path, err)
 	}
 
+	dr.log.Info("document injested", "file", doc.File, "crc", doc.Crc)
 	return nil
 }
 
@@ -202,6 +260,8 @@ func (dr *DocRegistry) forgetFile(path string) error {
 		if err != nil {
 			return fmt.Errorf("forgetFile failed to remove %s from db: %w", rel, err)
 		}
+
+		dr.log.Info("document removed", "file", d.File, "crc", d.Crc)
 	}
 
 	return nil
@@ -268,6 +328,8 @@ func (dr *DocRegistry) injestNewDocuments(ctx context.Context, disk diskDocs, db
 		if err != nil {
 			return fmt.Errorf("failed to store document %s: %w", diskDoc.File, err)
 		}
+
+		dr.log.Info("document injested", "file", diskDoc.File, "crc", diskDoc.Crc)
 	}
 
 	return nil
@@ -284,6 +346,8 @@ func (dr *DocRegistry) forgetRemovedDocuments(ctx context.Context, disk diskDocs
 		if err != nil {
 			return fmt.Errorf("failed to remove document %s from store: %w", dbDoc.File, err)
 		}
+
+		dr.log.Info("document removed", "file", dbDoc.File, "crc", dbDoc.Crc)
 	}
 
 	return nil
@@ -297,4 +361,20 @@ func (dr *DocRegistry) findReader(file string) (fileReader, error) {
 	}
 
 	return nil, fmt.Errorf("unable to find reader for file: %s", file)
+}
+
+func ensureDir(dir string) error {
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return os.MkdirAll(dir, 0o755)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to get directory info: %w", err)
+	}
+	if !info.IsDir() {
+		return errors.New("not a directory")
+	}
+
+	return nil
 }

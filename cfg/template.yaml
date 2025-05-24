@@ -1,0 +1,10 @@
+log: log.json
+doc_root: docs
+write_debounce_ms: 500
+chunk_size: 1024
+chunk_overlap: 128
+request_size: 150000
+results: 5
+open_ai:
+  model: "text-embedding-3-large"
+  api_key: "paste your Open AI API key here"

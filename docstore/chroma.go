@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	chroma "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/amikos-tech/chroma-go/pkg/commons/http"
@@ -33,6 +34,18 @@ func NewChromaStore(ctx context.Context, cfg ChromaStoreConfig) (*ChromaStore, e
 	client, err := chroma.NewHTTPClient(chroma.WithBaseURL(cfg.BaseURL))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chroma http client: %w", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		err := client.Heartbeat(ctx)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	err = client.Heartbeat(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to chroma: %w", err)
 	}
 
 	if cfg.Reset {

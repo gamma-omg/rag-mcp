@@ -53,7 +53,13 @@ func initDocStore(cfg *Config, reset bool) (*docstore.ChromaStore, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	store, err := docstore.NewChromaStore(ctx, ef, cfg.Results, cfg.RequestSize, reset)
+	store, err := docstore.NewChromaStore(ctx, docstore.ChromaStoreConfig{
+		BaseURL:       cfg.ChromaAddr,
+		EmbeddingFunc: ef,
+		Results:       cfg.Results,
+		RequestSize:   cfg.RequestSize,
+		Reset:         reset,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Chroma doc store: %w", err)
 	}

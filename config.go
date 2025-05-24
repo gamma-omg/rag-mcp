@@ -16,6 +16,7 @@ type Config struct {
 	RequestSize   int    `yaml:"request_size"`
 	Results       int    `yaml:"results"`
 	ServerAddr    string `yaml:"server_addr"`
+	ChromaAddr    string `yaml:"chroma_addr"`
 	OpenAI        *struct {
 		Model  string `yaml:"model"`
 		ApiKey string `yaml:"api_key"`

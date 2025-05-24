@@ -21,13 +21,21 @@ const (
 	FileCrc  = "file_crc"
 )
 
-func NewChromaStore(ctx context.Context, ef embeddings.EmbeddingFunction, results int, requestSize int, reset bool) (*ChromaStore, error) {
-	client, err := chroma.NewHTTPClient()
+type ChromaStoreConfig struct {
+	BaseURL       string
+	EmbeddingFunc embeddings.EmbeddingFunction
+	Results       int
+	RequestSize   int
+	Reset         bool
+}
+
+func NewChromaStore(ctx context.Context, cfg ChromaStoreConfig) (*ChromaStore, error) {
+	client, err := chroma.NewHTTPClient(chroma.WithBaseURL(cfg.BaseURL))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chroma http client: %w", err)
 	}
 
-	if reset {
+	if cfg.Reset {
 		var chromaErr *http.ChromaError
 		if err := client.DeleteCollection(ctx, "documents"); errors.As(err, &chromaErr) {
 			if chromaErr.ErrorCode != 404 {
@@ -36,14 +44,14 @@ func NewChromaStore(ctx context.Context, ef embeddings.EmbeddingFunction, result
 		}
 	}
 
-	col, err := client.GetOrCreateCollection(ctx, "documents", chroma.WithEmbeddingFunctionCreate(ef))
+	col, err := client.GetOrCreateCollection(ctx, "documents", chroma.WithEmbeddingFunctionCreate(cfg.EmbeddingFunc))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chroma collection: %w", err)
 	}
 
 	return &ChromaStore{
-		results:     results,
-		requestSize: requestSize,
+		results:     cfg.Results,
+		requestSize: cfg.RequestSize,
 		col:         col,
 	}, nil
 }

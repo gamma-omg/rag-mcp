@@ -1,12 +1,20 @@
 services:
   chroma:
     image: chromadb/chroma:latest
-    ports:
-      - "8000:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
       - IS_PERSISTENT=TRUE
+    
+  rag-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 3001:3001
+    volumes:
+      - ./docs:/docs
+      - ./cfg:/cfg
 
 volumes:
   chroma_data:

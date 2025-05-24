@@ -1,4 +1,5 @@
 log: log.json
+chroma_addr: "http://chroma:8000"
 server_addr: ":3001"
 doc_root: docs
 write_debounce_ms: 500

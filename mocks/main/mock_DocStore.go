@@ -23,7 +23,7 @@ func (_m *MockDocStore) EXPECT() *MockDocStore_Expecter {
 }
 
 // Forget provides a mock function with given fields: ctx, doc
-func (_m *MockDocStore) Forget(ctx context.Context, doc docstore.InjestedDoc) error {
+func (_m *MockDocStore) Forget(ctx context.Context, doc docstore.IngestedDoc) error {
 	ret := _m.Called(ctx, doc)
 
 	if len(ret) == 0 {
@@ -31,7 +31,7 @@ func (_m *MockDocStore) Forget(ctx context.Context, doc docstore.InjestedDoc) er
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, docstore.InjestedDoc) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, docstore.IngestedDoc) error); ok {
 		r0 = rf(ctx, doc)
 	} else {
 		r0 = ret.Error(0)
@@ -47,14 +47,14 @@ type MockDocStore_Forget_Call struct {
 
 // Forget is a helper method to define mock.On call
 //   - ctx context.Context
-//   - doc docstore.InjestedDoc
+//   - doc docstore.IngestedDoc
 func (_e *MockDocStore_Expecter) Forget(ctx interface{}, doc interface{}) *MockDocStore_Forget_Call {
 	return &MockDocStore_Forget_Call{Call: _e.mock.On("Forget", ctx, doc)}
 }
 
-func (_c *MockDocStore_Forget_Call) Run(run func(ctx context.Context, doc docstore.InjestedDoc)) *MockDocStore_Forget_Call {
+func (_c *MockDocStore_Forget_Call) Run(run func(ctx context.Context, doc docstore.IngestedDoc)) *MockDocStore_Forget_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(docstore.InjestedDoc))
+		run(args[0].(context.Context), args[1].(docstore.IngestedDoc))
 	})
 	return _c
 }
@@ -64,29 +64,29 @@ func (_c *MockDocStore_Forget_Call) Return(_a0 error) *MockDocStore_Forget_Call 
 	return _c
 }
 
-func (_c *MockDocStore_Forget_Call) RunAndReturn(run func(context.Context, docstore.InjestedDoc) error) *MockDocStore_Forget_Call {
+func (_c *MockDocStore_Forget_Call) RunAndReturn(run func(context.Context, docstore.IngestedDoc) error) *MockDocStore_Forget_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetInjested provides a mock function with given fields: ctx
-func (_m *MockDocStore) GetInjested(ctx context.Context) ([]docstore.InjestedDoc, error) {
+// GetIngested provides a mock function with given fields: ctx
+func (_m *MockDocStore) GetIngested(ctx context.Context) ([]docstore.IngestedDoc, error) {
 	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetInjested")
+		panic("no return value specified for GetIngested")
 	}
 
-	var r0 []docstore.InjestedDoc
+	var r0 []docstore.IngestedDoc
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) ([]docstore.InjestedDoc, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context) ([]docstore.IngestedDoc, error)); ok {
 		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) []docstore.InjestedDoc); ok {
+	if rf, ok := ret.Get(0).(func(context.Context) []docstore.IngestedDoc); ok {
 		r0 = rf(ctx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]docstore.InjestedDoc)
+			r0 = ret.Get(0).([]docstore.IngestedDoc)
 		}
 	}
 
@@ -99,40 +99,40 @@ func (_m *MockDocStore) GetInjested(ctx context.Context) ([]docstore.InjestedDoc
 	return r0, r1
 }
 
-// MockDocStore_GetInjested_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetInjested'
-type MockDocStore_GetInjested_Call struct {
+// MockDocStore_GetIngested_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetIngested'
+type MockDocStore_GetIngested_Call struct {
 	*mock.Call
 }
 
-// GetInjested is a helper method to define mock.On call
+// GetIngested is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockDocStore_Expecter) GetInjested(ctx interface{}) *MockDocStore_GetInjested_Call {
-	return &MockDocStore_GetInjested_Call{Call: _e.mock.On("GetInjested", ctx)}
+func (_e *MockDocStore_Expecter) GetIngested(ctx interface{}) *MockDocStore_GetIngested_Call {
+	return &MockDocStore_GetIngested_Call{Call: _e.mock.On("GetIngested", ctx)}
 }
 
-func (_c *MockDocStore_GetInjested_Call) Run(run func(ctx context.Context)) *MockDocStore_GetInjested_Call {
+func (_c *MockDocStore_GetIngested_Call) Run(run func(ctx context.Context)) *MockDocStore_GetIngested_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context))
 	})
 	return _c
 }
 
-func (_c *MockDocStore_GetInjested_Call) Return(_a0 []docstore.InjestedDoc, _a1 error) *MockDocStore_GetInjested_Call {
+func (_c *MockDocStore_GetIngested_Call) Return(_a0 []docstore.IngestedDoc, _a1 error) *MockDocStore_GetIngested_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockDocStore_GetInjested_Call) RunAndReturn(run func(context.Context) ([]docstore.InjestedDoc, error)) *MockDocStore_GetInjested_Call {
+func (_c *MockDocStore_GetIngested_Call) RunAndReturn(run func(context.Context) ([]docstore.IngestedDoc, error)) *MockDocStore_GetIngested_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// Injest provides a mock function with given fields: ctx, doc
-func (_m *MockDocStore) Injest(ctx context.Context, doc docstore.Doc) error {
+// Ingest provides a mock function with given fields: ctx, doc
+func (_m *MockDocStore) Ingest(ctx context.Context, doc docstore.Doc) error {
 	ret := _m.Called(ctx, doc)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Injest")
+		panic("no return value specified for Ingest")
 	}
 
 	var r0 error
@@ -145,31 +145,31 @@ func (_m *MockDocStore) Injest(ctx context.Context, doc docstore.Doc) error {
 	return r0
 }
 
-// MockDocStore_Injest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Injest'
-type MockDocStore_Injest_Call struct {
+// MockDocStore_Ingest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Ingest'
+type MockDocStore_Ingest_Call struct {
 	*mock.Call
 }
 
-// Injest is a helper method to define mock.On call
+// Ingest is a helper method to define mock.On call
 //   - ctx context.Context
 //   - doc docstore.Doc
-func (_e *MockDocStore_Expecter) Injest(ctx interface{}, doc interface{}) *MockDocStore_Injest_Call {
-	return &MockDocStore_Injest_Call{Call: _e.mock.On("Injest", ctx, doc)}
+func (_e *MockDocStore_Expecter) Ingest(ctx interface{}, doc interface{}) *MockDocStore_Ingest_Call {
+	return &MockDocStore_Ingest_Call{Call: _e.mock.On("Ingest", ctx, doc)}
 }
 
-func (_c *MockDocStore_Injest_Call) Run(run func(ctx context.Context, doc docstore.Doc)) *MockDocStore_Injest_Call {
+func (_c *MockDocStore_Ingest_Call) Run(run func(ctx context.Context, doc docstore.Doc)) *MockDocStore_Ingest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(docstore.Doc))
 	})
 	return _c
 }
 
-func (_c *MockDocStore_Injest_Call) Return(_a0 error) *MockDocStore_Injest_Call {
+func (_c *MockDocStore_Ingest_Call) Return(_a0 error) *MockDocStore_Ingest_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockDocStore_Injest_Call) RunAndReturn(run func(context.Context, docstore.Doc) error) *MockDocStore_Injest_Call {
+func (_c *MockDocStore_Ingest_Call) RunAndReturn(run func(context.Context, docstore.Doc) error) *MockDocStore_Ingest_Call {
 	_c.Call.Return(run)
 	return _c
 }

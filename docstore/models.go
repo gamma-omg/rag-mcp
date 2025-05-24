@@ -12,7 +12,7 @@ type SearchResult struct {
 	Score float32
 }
 
-type InjestedDoc struct {
+type IngestedDoc struct {
 	File string
 	Crc  uint32
 }

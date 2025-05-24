@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Injest(t *testing.T) {
+func Test_Ingest(t *testing.T) {
 	col := new(mocks.MockCollection)
 	store := ChromaStore{
 		results: 1,
@@ -27,11 +27,11 @@ func Test_Injest(t *testing.T) {
 
 	col.EXPECT().Add(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	require.NoError(t, store.Injest(context.Background(), doc))
+	require.NoError(t, store.Ingest(context.Background(), doc))
 	col.AssertExpectations(t)
 }
 
-func Test_Injest_SplitsToBuckets(t *testing.T) {
+func Test_Ingest_SplitsToBuckets(t *testing.T) {
 	col := new(mocks.MockCollection)
 	store := ChromaStore{
 		results:     1,
@@ -47,7 +47,7 @@ func Test_Injest_SplitsToBuckets(t *testing.T) {
 
 	col.EXPECT().Add(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(4)
 
-	require.NoError(t, store.Injest(context.Background(), doc))
+	require.NoError(t, store.Ingest(context.Background(), doc))
 	col.AssertExpectations(t)
 }
 
@@ -89,7 +89,7 @@ func Test_Forget(t *testing.T) {
 		col:     col,
 	}
 
-	doc := InjestedDoc{
+	doc := IngestedDoc{
 		File: "f1.txt",
 		Crc:  123,
 	}
@@ -98,7 +98,7 @@ func Test_Forget(t *testing.T) {
 	require.NoError(t, store.Forget(context.Background(), doc))
 }
 
-func Test_GetInjestedDocs(t *testing.T) {
+func Test_GetIngestedDocs(t *testing.T) {
 	col := new(mocks.MockCollection)
 	store := ChromaStore{
 		results: 1,
@@ -114,8 +114,8 @@ func Test_GetInjestedDocs(t *testing.T) {
 
 	col.EXPECT().Get(mock.Anything, mock.Anything).Return(get, nil)
 
-	injested, err := store.GetInjested(context.Background())
+	ingested, err := store.GetIngested(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, injested, []InjestedDoc{{File: "facts.pdf", Crc: 12345}})
+	assert.Equal(t, ingested, []IngestedDoc{{File: "facts.pdf", Crc: 12345}})
 	col.AssertExpectations(t)
 }

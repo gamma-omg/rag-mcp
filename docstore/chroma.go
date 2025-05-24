@@ -56,7 +56,7 @@ func NewChromaStore(ctx context.Context, cfg ChromaStoreConfig) (*ChromaStore, e
 	}, nil
 }
 
-func (ds *ChromaStore) Injest(ctx context.Context, doc Doc) error {
+func (ds *ChromaStore) Ingest(ctx context.Context, doc Doc) error {
 	var bucket []string
 	size := 0
 	for _, c := range doc.Chunks {
@@ -67,28 +67,28 @@ func (ds *ChromaStore) Injest(ctx context.Context, doc Doc) error {
 			continue
 		}
 
-		if err := ds.injestBucket(ctx, bucket, doc); err != nil {
+		if err := ds.ingestBucket(ctx, bucket, doc); err != nil {
 			rollbackErr := ds.rollback(ctx, doc)
 			if rollbackErr != nil {
-				return fmt.Errorf("failed to injest bucket %w; and failed to rollback: %v", err, rollbackErr)
+				return fmt.Errorf("failed to ingest bucket %w; and failed to rollback: %v", err, rollbackErr)
 			}
 
-			return fmt.Errorf("failed to injest bucket: %w", err)
+			return fmt.Errorf("failed to ingest bucket: %w", err)
 		}
 
 		bucket = []string{c}
 		size = chunkSize
 	}
 
-	err := ds.injestBucket(ctx, bucket, doc)
+	err := ds.ingestBucket(ctx, bucket, doc)
 	if err != nil {
-		return fmt.Errorf("failed to injest final bucket: %w", err)
+		return fmt.Errorf("failed to ingest final bucket: %w", err)
 	}
 
 	return nil
 }
 
-func (ds *ChromaStore) injestBucket(ctx context.Context, texts []string, doc Doc) error {
+func (ds *ChromaStore) ingestBucket(ctx context.Context, texts []string, doc Doc) error {
 	size := len(texts)
 	metadatas := make([]chroma.DocumentMetadata, size)
 	for i := range size {
@@ -139,7 +139,7 @@ func (ds *ChromaStore) Retrieve(ctx context.Context, query string) ([]SearchResu
 	return res, nil
 }
 
-func (ds *ChromaStore) Forget(ctx context.Context, doc InjestedDoc) error {
+func (ds *ChromaStore) Forget(ctx context.Context, doc IngestedDoc) error {
 	err := ds.col.Delete(ctx, chroma.WithWhereDelete(
 		chroma.And(
 			chroma.EqString(FilePath, doc.File),
@@ -152,20 +152,20 @@ func (ds *ChromaStore) Forget(ctx context.Context, doc InjestedDoc) error {
 	return nil
 }
 
-func (ds *ChromaStore) GetInjested(ctx context.Context) ([]InjestedDoc, error) {
+func (ds *ChromaStore) GetIngested(ctx context.Context) ([]IngestedDoc, error) {
 	res, err := ds.col.Get(ctx, chroma.WithIncludeGet(chroma.IncludeMetadatas))
 	if err != nil {
 		return nil, err
 	}
 
-	var docs []InjestedDoc
-	seen := make(map[InjestedDoc]struct{})
+	var docs []IngestedDoc
+	seen := make(map[IngestedDoc]struct{})
 	metadata := res.GetMetadatas()
 
 	for _, meta := range metadata {
 		path, _ := meta.GetString(FilePath)
 		crc, _ := meta.GetFloat(FileCrc) // for some reason file crc gets stored as float64 in Chroma
-		doc := InjestedDoc{
+		doc := IngestedDoc{
 			File: path,
 			Crc:  uint32(crc),
 		}

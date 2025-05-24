@@ -32,17 +32,17 @@ func (r *mockTextReader) ReadText(path string) (string, error) {
 }
 
 type fakeDocStore struct {
-	injested     []docstore.InjestedDoc
-	injestCalls  []docstore.Doc
-	foregetCalls []docstore.InjestedDoc
+	ingested     []docstore.IngestedDoc
+	ingestCalls  []docstore.Doc
+	foregetCalls []docstore.IngestedDoc
 }
 
-func (s *fakeDocStore) Injest(ctx context.Context, doc docstore.Doc) error {
-	s.injested = append(s.injested, docstore.InjestedDoc{
+func (s *fakeDocStore) Ingest(ctx context.Context, doc docstore.Doc) error {
+	s.ingested = append(s.ingested, docstore.IngestedDoc{
 		File: doc.File,
 		Crc:  doc.Crc,
 	})
-	s.injestCalls = append(s.injestCalls, doc)
+	s.ingestCalls = append(s.ingestCalls, doc)
 	return nil
 }
 
@@ -50,21 +50,21 @@ func (s *fakeDocStore) Retrieve(ctx context.Context, query string) ([]docstore.S
 	panic("not implemented")
 }
 
-func (s *fakeDocStore) Forget(ctx context.Context, doc docstore.InjestedDoc) error {
-	s.injested = slices.DeleteFunc(s.injested, func(d docstore.InjestedDoc) bool {
+func (s *fakeDocStore) Forget(ctx context.Context, doc docstore.IngestedDoc) error {
+	s.ingested = slices.DeleteFunc(s.ingested, func(d docstore.IngestedDoc) bool {
 		return d.File == doc.File && d.Crc == doc.Crc
 	})
 	s.foregetCalls = append(s.foregetCalls, doc)
 	return nil
 }
 
-func (s *fakeDocStore) GetInjested(ctx context.Context) ([]docstore.InjestedDoc, error) {
-	return s.injested, nil
+func (s *fakeDocStore) GetIngested(ctx context.Context) ([]docstore.IngestedDoc, error) {
+	return s.ingested, nil
 }
 
-func (s *fakeDocStore) getInjestCalls() []string {
-	calls := make([]string, 0, len(s.injestCalls))
-	for _, d := range s.injestCalls {
+func (s *fakeDocStore) getIngestCalls() []string {
+	calls := make([]string, 0, len(s.ingestCalls))
+	for _, d := range s.ingestCalls {
 		calls = append(calls, d.File)
 	}
 
@@ -99,7 +99,7 @@ func Test_Sync(t *testing.T) {
 	f2 := createFile("f2.txt", "f2")
 
 	store := &fakeDocStore{
-		injested: []docstore.InjestedDoc{
+		ingested: []docstore.IngestedDoc{
 			{File: "f2.txt", Crc: f2.Crc},
 			{File: "f3.pdf", Crc: 0},
 			{File: "f4.pdf", Crc: 4},
@@ -119,7 +119,7 @@ func Test_Sync(t *testing.T) {
 
 	require.NoError(t, reg.Sync(context.Background()))
 
-	assert.ElementsMatch(t, []string{"f1.txt", "f3.pdf"}, store.getInjestCalls())
+	assert.ElementsMatch(t, []string{"f1.txt", "f3.pdf"}, store.getIngestCalls())
 	assert.ElementsMatch(t, []string{"f3.pdf", "f4.pdf"}, store.getForgetCalls())
 	chunkifier.AssertExpectations(t)
 }
@@ -182,7 +182,7 @@ func Test_Watch(t *testing.T) {
 
 	<-done
 
-	assert.ElementsMatch(t, []string{"f1.txt", "f2.txt", "f1.txt", "f3.txt"}, store.getInjestCalls())
+	assert.ElementsMatch(t, []string{"f1.txt", "f2.txt", "f1.txt", "f3.txt"}, store.getIngestCalls())
 	assert.ElementsMatch(t, []string{"f1.txt", "f1.txt", "f2.txt"}, store.getForgetCalls())
 	chunkifier.AssertExpectations(t)
 }
@@ -242,11 +242,11 @@ func Test_Watch_MergeEvents(t *testing.T) {
 
 	<-done
 
-	assert.ElementsMatch(t, []string{"f3.txt", "f2.txt", "f2.txt"}, store.getInjestCalls())
+	assert.ElementsMatch(t, []string{"f3.txt", "f2.txt", "f2.txt"}, store.getIngestCalls())
 	chunkifier.AssertExpectations(t)
 }
 
-func Test_injestNewDocuments(t *testing.T) {
+func Test_ingestNewDocuments(t *testing.T) {
 	store := new(mocks.MockDocStore)
 
 	reader := new(mocks.MockFileReader)
@@ -268,8 +268,8 @@ func Test_injestNewDocuments(t *testing.T) {
 		"f2.txt": DiskDoc{File: "f2.txt", Crc: 23456},
 	}
 	db := dbDocs{
-		"f2.txt": docstore.InjestedDoc{File: "f2.txt", Crc: 23456},
-		"f3.txt": docstore.InjestedDoc{File: "f3.txt", Crc: 34567},
+		"f2.txt": docstore.IngestedDoc{File: "f2.txt", Crc: 23456},
+		"f3.txt": docstore.IngestedDoc{File: "f3.txt", Crc: 34567},
 	}
 
 	expectedDoc := docstore.Doc{
@@ -277,9 +277,9 @@ func Test_injestNewDocuments(t *testing.T) {
 		Crc:    12345,
 		Chunks: []string{"f1 content"},
 	}
-	store.On("Injest", mock.Anything, expectedDoc).Return(nil)
+	store.On("Ingest", mock.Anything, expectedDoc).Return(nil)
 
-	require.NoError(t, reg.injestNewDocuments(context.Background(), disk, db))
+	require.NoError(t, reg.ingestNewDocuments(context.Background(), disk, db))
 
 	store.AssertExpectations(t)
 	reader.AssertExpectations(t)
@@ -298,11 +298,11 @@ func Test_forgetRemovedDocuments(t *testing.T) {
 		"f2.txt": DiskDoc{File: "f2.txt", Crc: 23456},
 	}
 	db := dbDocs{
-		"f2.txt": docstore.InjestedDoc{File: "f2.txt", Crc: 23456},
-		"f3.txt": docstore.InjestedDoc{File: "f3.txt", Crc: 34567},
+		"f2.txt": docstore.IngestedDoc{File: "f2.txt", Crc: 23456},
+		"f3.txt": docstore.IngestedDoc{File: "f3.txt", Crc: 34567},
 	}
 
-	expectedDocument := docstore.InjestedDoc{
+	expectedDocument := docstore.IngestedDoc{
 		File: "f3.txt",
 		Crc:  34567,
 	}

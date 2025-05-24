@@ -16,9 +16,9 @@ import (
 )
 
 type docStorer interface {
-	Injest(ctx context.Context, doc docstore.Doc) error
-	Forget(ctx context.Context, doc docstore.InjestedDoc) error
-	GetInjested(ctx context.Context) ([]docstore.InjestedDoc, error)
+	Ingest(ctx context.Context, doc docstore.Doc) error
+	Forget(ctx context.Context, doc docstore.IngestedDoc) error
+	GetIngested(ctx context.Context) ([]docstore.IngestedDoc, error)
 }
 
 type fileReader interface {
@@ -45,7 +45,7 @@ type DiskDoc struct {
 }
 
 type diskDocs map[string]DiskDoc
-type dbDocs map[string]docstore.InjestedDoc
+type dbDocs map[string]docstore.IngestedDoc
 
 func (dr *DocRegistry) RegisterReader(readers ...fileReader) {
 	dr.readers = append(dr.readers, readers...)
@@ -69,9 +69,9 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 		diskMap[d.File] = d
 	}
 
-	db, err := dr.storer.GetInjested(ctx)
+	db, err := dr.storer.GetIngested(ctx)
 	if err != nil {
-		return fmt.Errorf("collect injested docs from db: %w", err)
+		return fmt.Errorf("collect ingested docs from db: %w", err)
 	}
 
 	dbMap := make(dbDocs)
@@ -79,9 +79,9 @@ func (dr *DocRegistry) Sync(ctx context.Context) error {
 		dbMap[d.File] = d
 	}
 
-	err = dr.injestNewDocuments(ctx, diskMap, dbMap)
+	err = dr.ingestNewDocuments(ctx, diskMap, dbMap)
 	if err != nil {
-		return fmt.Errorf("injest new documents: %w", err)
+		return fmt.Errorf("ingest new documents: %w", err)
 	}
 
 	err = dr.forgetRemovedDocuments(ctx, diskMap, dbMap)
@@ -181,9 +181,9 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 			return
 		}
 
-		err = dr.injestFile(evt.Name)
+		err = dr.ingestFile(evt.Name)
 		if err != nil {
-			dr.log.Warn("failed to handle write file: failed to injest file", slog.String("error", err.Error()))
+			dr.log.Warn("failed to handle write file: failed to ingest file", slog.String("error", err.Error()))
 			return
 		}
 	}
@@ -208,21 +208,21 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 	}
 }
 
-func (dr *DocRegistry) injestFile(path string) error {
+func (dr *DocRegistry) ingestFile(path string) error {
 	reader, err := dr.findReader(path)
 	if err != nil {
-		dr.log.Warn("unable to injest file: reader not found", slog.String("file", path))
+		dr.log.Warn("unable to ingest file: reader not found", slog.String("file", path))
 		return nil
 	}
 
 	text, err := reader.ReadText(path)
 	if err != nil {
-		return fmt.Errorf("injestFile unable to read %s: %w", path, err)
+		return fmt.Errorf("ingestFile unable to read %s: %w", path, err)
 	}
 
 	rel, err := filepath.Rel(dr.root, path)
 	if err != nil {
-		return fmt.Errorf("injestFile invalid file path %s: %w", path, err)
+		return fmt.Errorf("ingestFile invalid file path %s: %w", path, err)
 	}
 
 	doc := docstore.Doc{
@@ -230,19 +230,19 @@ func (dr *DocRegistry) injestFile(path string) error {
 		Crc:    crc32.Checksum([]byte(text), crc32.IEEETable),
 		Chunks: dr.chunkifier.Chunkify(text),
 	}
-	err = dr.storer.Injest(context.Background(), doc)
+	err = dr.storer.Ingest(context.Background(), doc)
 	if err != nil {
-		return fmt.Errorf("injestFile failed to store %s content to db: %w", path, err)
+		return fmt.Errorf("ingestFile failed to store %s content to db: %w", path, err)
 	}
 
-	dr.log.Info("document injested", "file", doc.File, "crc", doc.Crc)
+	dr.log.Info("document ingested", "file", doc.File, "crc", doc.Crc)
 	return nil
 }
 
 func (dr *DocRegistry) forgetFile(path string) error {
-	docs, err := dr.storer.GetInjested(context.Background())
+	docs, err := dr.storer.GetIngested(context.Background())
 	if err != nil {
-		return fmt.Errorf("forgetFile failed to get injested files: %w", err)
+		return fmt.Errorf("forgetFile failed to get ingested files: %w", err)
 	}
 
 	rel, err := filepath.Rel(dr.root, path)
@@ -302,7 +302,7 @@ func (dr *DocRegistry) collectDocs() (docs []DiskDoc, err error) {
 	return
 }
 
-func (dr *DocRegistry) injestNewDocuments(ctx context.Context, disk diskDocs, db dbDocs) error {
+func (dr *DocRegistry) ingestNewDocuments(ctx context.Context, disk diskDocs, db dbDocs) error {
 	for _, diskDoc := range disk {
 		dbDoc, ok := db[diskDoc.File]
 		if ok && dbDoc.Crc == diskDoc.Crc {
@@ -319,7 +319,7 @@ func (dr *DocRegistry) injestNewDocuments(ctx context.Context, disk diskDocs, db
 			return fmt.Errorf("failed to read document %s: %w", diskDoc.File, err)
 		}
 
-		err = dr.storer.Injest(ctx, docstore.Doc{
+		err = dr.storer.Ingest(ctx, docstore.Doc{
 			File:   diskDoc.File,
 			Crc:    diskDoc.Crc,
 			Chunks: dr.chunkifier.Chunkify(text),
@@ -328,7 +328,7 @@ func (dr *DocRegistry) injestNewDocuments(ctx context.Context, disk diskDocs, db
 			return fmt.Errorf("failed to store document %s: %w", diskDoc.File, err)
 		}
 
-		dr.log.Info("document injested", "file", diskDoc.File, "crc", diskDoc.Crc)
+		dr.log.Info("document ingested", "file", diskDoc.File, "crc", diskDoc.Crc)
 	}
 
 	return nil

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -83,7 +84,7 @@ func main() {
 	}
 	defer logFile.Close()
 
-	logger := slog.New(slog.NewJSONHandler(logFile, nil))
+	logger := slog.New(slog.NewJSONHandler(io.MultiWriter(logFile, os.Stdout), nil))
 
 	store, err := initDocStore(cfg, *reset)
 	if err != nil {

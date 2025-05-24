@@ -177,13 +177,13 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 
 		err := dr.forgetFile(evt.Name)
 		if err != nil {
-			dr.log.Warn("failed to handle write file: failed to forget file", slog.String("error", err.Error()))
+			dr.log.Warn("failed to handle write file: failed to forget file", "error", err, "file", evt.Name)
 			return
 		}
 
 		err = dr.ingestFile(evt.Name)
 		if err != nil {
-			dr.log.Warn("failed to handle write file: failed to ingest file", slog.String("error", err.Error()))
+			dr.log.Warn("failed to handle write file: failed to ingest file", "error", err, "file", evt.Name)
 			return
 		}
 	}
@@ -193,7 +193,7 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 
 		err := dr.forgetFile(evt.Name)
 		if err != nil {
-			dr.log.Warn("failed to handle write rename file", slog.String("error", err.Error()))
+			dr.log.Warn("failed to handle write rename file", "error", err, "file", evt.Name)
 		}
 		return
 	}
@@ -203,7 +203,7 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 
 		err := dr.forgetFile(evt.Name)
 		if err != nil {
-			slog.Warn("forget file failed", slog.String("error", err.Error()))
+			dr.log.Warn("forget file failed", "error", err, "file", evt.Name)
 		}
 	}
 }
@@ -211,7 +211,7 @@ func (dr *DocRegistry) processFsEvent(evt fsnotify.Event) {
 func (dr *DocRegistry) ingestFile(path string) error {
 	reader, err := dr.findReader(path)
 	if err != nil {
-		dr.log.Warn("unable to ingest file: reader not found", slog.String("file", path))
+		dr.log.Warn("unable to ingest file: reader not found", "error", err, "file", path)
 		return nil
 	}
 
@@ -274,7 +274,7 @@ func (dr *DocRegistry) collectDocs() (docs []DiskDoc, err error) {
 
 		reader, e := dr.findReader(path)
 		if e != nil {
-			dr.log.Warn(fmt.Sprintf("unsupported file: %s", path))
+			dr.log.Warn("undupported file", "file", path)
 			return nil
 		}
 
